@@ -35,7 +35,7 @@ quotes_all = [
 },
 ]
 
-last_id = quotes_all[-1].get("id") + 1
+
 
 @app.route("/")
 def hello_world():
@@ -66,6 +66,7 @@ def random_url():
 
 @app.route("/quotes", methods=['POST'])
 def create_quote():
+    last_id = quotes_all[-1].get("id") + 1
     data = request.json
     data["id"] = last_id
     quotes_all.append(data)
@@ -76,23 +77,24 @@ def create_quote():
 def edit_quote(id):
     new_data= request.json
     new_data["id"] = int(id)
-
     for num_id in quotes_all:
         if num_id["id"] == new_data["id"]:
             if new_data.get("author") is not None :
-                num_id["author"] = new_data["author"]
-                
-        
+                num_id["author"] = new_data["author"]                   
             if new_data.get("text") is not None :
                 num_id["text"] = new_data["text"]
             return num_id
     return f"Quote with id={id} not found", 404
 
 
-
-
-
-
-
+@app.route("/quotes/<id>", methods=['DELETE'])
+def delete(id):
+    ind=0
+    for num_id in quotes_all:
+        if num_id["id"] == int(id):
+            del quotes_all[ind]
+            return f"Quote with id {id} is deleted.", 200
+        ind= ind+1
+        
 if __name__ == "__main__":
     app.run(debug=True)
