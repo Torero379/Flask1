@@ -35,6 +35,7 @@ quotes_all = [
 },
 ]
 
+last_id = quotes_all[-1].get("id") + 1
 
 @app.route("/")
 def hello_world():
@@ -66,8 +67,10 @@ def random_url():
 @app.route("/quotes", methods=['POST'])
 def create_quote():
     data = request.json
-    print("data = ", data)
+    data["id"] = last_id
+    quotes_all.append(data)
     return data, 201
+
 
 
 if __name__ == "__main__":
