@@ -1,6 +1,6 @@
 from flask import Flask
 import random
-
+from flask import request
 
 
 app = Flask(__name__)
@@ -62,6 +62,13 @@ def quotes_count():
 @app.route("/quotes/random_url")
 def random_url():
     return random.choice(quotes_all)
+
+@app.route("/quotes", methods=['POST'])
+def create_quote():
+    data = request.json
+    print("data = ", data)
+    return data, 201
+
 
 if __name__ == "__main__":
     app.run(debug=True)
