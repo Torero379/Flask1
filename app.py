@@ -92,43 +92,103 @@ def quotes_id(id):
     #         return num_id
     # return f"Quote with id={id} not found", 404
 
-@app.route("/quotes/count")
-def quotes_count():
-    return { "count" : len(quotes_all) }
+# @app.route("/quotes/count")
+# def quotes_count():
+#     return { "count" : len(quotes_all) }
 
 
 
 @app.route("/quotes", methods=['POST'])
 def create_quote():
-    last_id = quotes_all[-1].get("id") + 1
     data = request.json
-    data["id"] = last_id
-    quotes_all.append(data)
-    return data, 201
+    
+    # select_quotes = f"INSERT INTO quotes (author, text) VALUES ({data['author']},{data['text']}) " ### не понял почему не могу так записать 
+    # и ниже использовать cursor.execute(select_quotes) выдает ошибку OperationalError sqlite3.OperationalError: near "quote": syntax error
+    
+    select_quotes = "INSERT INTO quotes (author, text) VALUES(?,?)"
+    connection = sqlite3.connect("store.db")
+    cursor = connection.cursor()
+    cursor.execute(select_quotes,(data["author"],data["text"]))
+    data_id = cursor.lastrowid
+    connection.commit() 
+    cursor.close()
+    connection.close()
+    data["id"] = data_id
+    return jsonify(data),201
+
+    # last_id = quotes_all[-1].get("id") + 1
+    # data = request.json
+    # data["id"] = last_id
+    # quotes_all.append(data)
+    # return data, 201
 
 
 @app.route("/quotes/<id>", methods=['PUT'])
 def edit_quote(id):
     new_data= request.json
     new_data["id"] = int(id)
-    for num_id in quotes_all:
-        if num_id["id"] == new_data["id"]:
-            if new_data.get("author") is not None :
-                num_id["author"] = new_data["author"]                   
-            if new_data.get("text") is not None :
-                num_id["text"] = new_data["text"]
-            return num_id
+    if new_data.get("author") is not None:
+        select_quotes = "UPDATE quotes SET author=(?) WHERE id=(?)"
+        connection = sqlite3.connect("store.db")
+        cursor = connection.cursor()
+        cursor.execute(select_quotes,(new_data["author"],new_data["id"])) 
+        connection.commit() 
+        cursor.close()
+        connection.close()
+    if new_data.get("text") is not None:
+        select_quotes = f"UPDATE quotes  SET text=?  WHERE id=?"
+        connection = sqlite3.connect("store.db")
+        cursor = connection.cursor()
+        cursor.execute(select_quotes, (new_data["text"],new_data["id"]))  
+        connection.commit() 
+        cursor.close()
+        connection.close()
+    
+    select_quotes = f"SELECT * from quotes where id ={id} "
+    connection = sqlite3.connect("store.db")
+    cursor = connection.cursor()
+    cursor.execute(select_quotes)
+    quotes_db = cursor.fetchone()  
+    cursor.close()
+    connection.close()
+    keys = ("id", "author", "text")
+    if quotes_db is not None:
+        quote = dict(zip(keys,quotes_db))
+        return jsonify(quote), 200
     return f"Quote with id={id} not found", 404
+       
+   
+#     for num_id in quotes_all:
+#         if num_id["id"] == new_data["id"]:
+#             if new_data.get("author") is not None :
+#                 num_id["author"] = new_data["author"]                   
+#             if new_data.get("text") is not None :
+#                 num_id["text"] = new_data["text"]
+#             return num_id
+#     return f"Quote with id={id} not found", 404
 
 
 @app.route("/quotes/<id>", methods=['DELETE'])
 def delete(id):
-    ind=0
-    for num_id in quotes_all:
-        if num_id["id"] == int(id):
-            del quotes_all[ind]
-            return f"Quote with id {id} is deleted.", 200
-        ind= ind+1
+    select_quotes = f"DELETE FROM quotes WHERE id={id} "
+    connection = sqlite3.connect("store.db")
+    cursor = connection.cursor()
+    cursor.execute(select_quotes)   
+    del_quotes= cursor.rowcount
+    if del_quotes is not None:
+        connection.commit() 
+        cursor.close()
+        connection.close()
+        return f"Quote with id {id} is deleted.", 200
+    else: return f"Quote with id={id} not found", 404
+#   
+# 
+#     ind=0
+#     for num_id in quotes_all:
+#         if num_id["id"] == int(id):
+#             del quotes_all[ind]
+#             return f"Quote with id {id} is deleted.", 200
+#         ind= ind+1
         
 if __name__ == "__main__":
     app.run(debug=True)
