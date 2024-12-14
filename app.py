@@ -1,13 +1,44 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, abort, request
 import random
 import sqlite3
 from flask import request
 from pathlib import Path
+from werkzeug.exceptions import HTTPException
+### импорт для SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String
 
+class Base(DeclarativeBase):
+    pass
 
 BASE_DIR = Path(__file__).parent
 path_to_db = BASE_DIR / "store.db"  # <- тутпутькБД
 
+app = Flask(__name__)
+app.config['JSON_AS_ASCII'] = False
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{BASE_DIR / 'main.db'}"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+
+
+db = SQLAlchemy(model_class=Base)
+db.init_app(app)
+
+
+class QuoteModel(db.Model):
+    __tablename__ = 'quotes'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    author: Mapped[str] = mapped_column(String(32))
+    text: Mapped[str] = mapped_column(String(255))
+    rating: Mapped[int] ###= mapped_column(default=1)
+
+    def __init__(self, author, text):
+        self.author = author
+        self.text  = text
+        self.rating = rating
 
 
 app = Flask(__name__)
@@ -41,6 +72,20 @@ about_me = {
 # "text": "В теории, теория и практика неразделимы. На практике это не так."
 # },
 # ]
+
+
+### Функция для перехвата ошибок HTTP и возврата в виде JSON###
+
+@app.errorhandler(HTTPException)
+def handle_exeption(e):
+    return jsonify({"massage": e.description}), e.code
+
+
+
+
+
+
+
 
 
 @app.route("/quotes")
