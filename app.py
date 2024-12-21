@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, abort, request
+from typing import Any
 import random
 import sqlite3
 from flask import request
@@ -33,16 +34,22 @@ class QuoteModel(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     author: Mapped[str] = mapped_column(String(32))
     text: Mapped[str] = mapped_column(String(255))
-    rating: Mapped[int] ###= mapped_column(default=1)
+    rating: Mapped[int] = mapped_column(default=1)
 
-    def __init__(self, author, text):
+    def __init__(self, author, text, rating):
         self.author = author
         self.text  = text
         self.rating = rating
+    def to_dict(self):
+        return {
+            "id" : self.id,
+            "author": self.author,
+            "text": self.text,
+            "rating": self.rating
+        }
 
-
-app = Flask(__name__)
-app.config['JSON_AS_ASCII'] = False
+# app = Flask(__name__)
+# app.config['JSON_AS_ASCII'] = False
 
 about_me = {
 "name": "Владимир",
@@ -50,28 +57,7 @@ about_me = {
 "email": "vladimir.rogachev@ford-nn.com"
 }
 
-# quotes_all = [
-# {
-# "id": 3,
-# "author": "Rick Cook",
-# "text": "Программирование сегодня — это гонка разработчиков программ, стремящихся писать программы большей и лучшей идиотоустойчивостью, и вселенной, котораяпытается создать больше отборных идиотов. Пока вселеннаяпобеждает."
-# },
-# {
-# "id": 5,
-# "author": "Waldi Ravens",
-# "text": "Программирование на С похоже на быстрые танцы на только что отполированном полу людей с острыми бритвами в руках."
-# },
-# {
-# "id": 6,
-# "author": "Mosher’s Law of Software Engineering",
-# "text": "Не волнуйтесь, если что-то не работает. Если бы всё работало, вас бы уволили."
-# },
-# {
-# "id": 8,
-# "author": "Yoggi Berra",
-# "text": "В теории, теория и практика неразделимы. На практике это не так."
-# },
-# ]
+
 
 
 ### Функция для перехвата ошибок HTTP и возврата в виде JSON###
@@ -89,78 +75,95 @@ def handle_exeption(e):
 
 
 @app.route("/quotes")
-def quotes():
-    select_quotes = "SELECT * from quotes"
-    # ПодключениевБД
-    connection = sqlite3.connect("store.db")
-    # Создаем cursor, он позволяет делать SQL-запросы
-    cursor = connection.cursor()
-    # Выполняемзапрос:
-    cursor.execute(select_quotes)
+def quotes()->list[dict[str,Any]]:
+    quotes_db = db.session.scalars(db.select(QuoteModel)).all()
+    quotes = []
+    for quote in quotes_db:
+        quotes.append(quote.to_dict())
+    return jsonify(quotes), 200
 
-    # Извлекаем результаты запроса
-    quotes_db = cursor.fetchall() #получаем список кортежей list[tuple]
+
+
+    ###Вывод через select
+    # select_quotes = "SELECT * from quotes"
+    # # ПодключениевБД
+    # connection = sqlite3.connect("store.db")
+    # # Создаем cursor, он позволяет делать SQL-запросы
+    # cursor = connection.cursor()
+    # # Выполняемзапрос:
+    # cursor.execute(select_quotes)
+
+    # # Извлекаем результаты запроса
+    # quotes_db = cursor.fetchall() #получаем список кортежей list[tuple]
     
 
-    # Закрыть курсор:
-    cursor.close()
-    # Закрыть соединение:
-    connection.close()
-    # преобразовываем полученные из бд данные
-    # необходимо выполнить преобразование
-    # list[tuple] -> list [dict]
-    keys = ("id", "author", "text")
-    quotes=[]
-    for quote_db in quotes_db:
-        quote = dict(zip(keys,quote_db))
-        quotes.append(quote)
+    # # Закрыть курсор:
+    # cursor.close()
+    # # Закрыть соединение:
+    # connection.close()
+    # # преобразовываем полученные из бд данные
+    # # необходимо выполнить преобразование
+    # # list[tuple] -> list [dict]
+    # keys = ("id", "author", "text")
+    # quotes=[]
+    # for quote_db in quotes_db:
+    #     quote = dict(zip(keys,quote_db))
+    #     quotes.append(quote)
 
-    return jsonify(quotes), 200
+    # return jsonify(quotes), 200
        
 @app.route("/quotes/<int:id>")
-def quotes_id(id): 
-    select_quotes = f"SELECT * from quotes where id ={id} "
-    connection = sqlite3.connect("store.db")
-    cursor = connection.cursor()
-    cursor.execute(select_quotes)
-    quotes_db = cursor.fetchone()  
-    cursor.close()
-    connection.close()
-    keys = ("id", "author", "text")
-    if quotes_db is not None:
-        quote = dict(zip(keys,quotes_db))
-        return jsonify(quote), 200
-    return f"Quote with id={id} not found", 404
+def quotes_id(id):
+    quote = db.get_or_404(QuoteModel, id)
+    return jsonify(quote.to_dict()),200
+
+    #####################Вывод через select
+    # select_quotes = f"SELECT * from quotes where id ={id} "
+    # connection = sqlite3.connect("store.db")
+    # cursor = connection.cursor()
+    # cursor.execute(select_quotes)
+    # quotes_db = cursor.fetchone()  
+    # cursor.close()
+    # connection.close()
+    # keys = ("id", "author", "text")
+    # if quotes_db is not None:
+    #     quote = dict(zip(keys,quotes_db))
+    #     return jsonify(quote), 200
+    # return f"Quote with id={id} not found", 404
 
     # for num_id in quotes_all:
     #     if num_id["id"] == id:
     #         return num_id
     # return f"Quote with id={id} not found", 404
+######################
 
-# @app.route("/quotes/count")
-# def quotes_count():
-#     return { "count" : len(quotes_all) }
 
 
 
 @app.route("/quotes", methods=['POST'])
 def create_quote():
     data = request.json
-    
-    # select_quotes = f"INSERT INTO quotes (author, text) VALUES ({data['author']},{data['text']}) " ### не понял почему не могу так записать 
-    # и ниже использовать cursor.execute(select_quotes) выдает ошибку OperationalError sqlite3.OperationalError: near "quote": syntax error
-    
-    select_quotes = "INSERT INTO quotes (author, text) VALUES(?,?)"
-    connection = sqlite3.connect("store.db")
-    cursor = connection.cursor()
-    cursor.execute(select_quotes,(data["author"],data["text"]))
-    data_id = cursor.lastrowid
-    connection.commit() 
-    cursor.close()
-    connection.close()
-    data["id"] = data_id
-    return jsonify(data),201
+    if "rating" in data:
+        if 0<int(data["rating"])<6:
+            data_raiting = data["rating"]
+    else: data_raiting="1"
+    quote = QuoteModel (data["author"],data["text"],data_raiting)
+    db.session.add(quote)
+    db.session.commit()
+    return jsonify(quote.to_dict()),200
 
+##########################Вывод через select
+    # select_quotes = "INSERT INTO quotes (author, text) VALUES(?,?)"
+    # connection = sqlite3.connect("store.db")
+    # cursor = connection.cursor()
+    # cursor.execute(select_quotes,(data["author"],data["text"]))
+    # data_id = cursor.lastrowid
+    # connection.commit() 
+    # cursor.close()
+    # connection.close()
+    # data["id"] = data_id
+    # return jsonify(data),201
+############################
     # last_id = quotes_all[-1].get("id") + 1
     # data = request.json
     # data["id"] = last_id
@@ -171,37 +174,52 @@ def create_quote():
 @app.route("/quotes/<id>", methods=['PUT'])
 def edit_quote(id):
     new_data= request.json
-    new_data["id"] = int(id)
-    if new_data.get("author") is not None:
-        select_quotes = "UPDATE quotes SET author=(?) WHERE id=(?)"
-        connection = sqlite3.connect("store.db")
-        cursor = connection.cursor()
-        cursor.execute(select_quotes,(new_data["author"],new_data["id"])) 
-        connection.commit() 
-        cursor.close()
-        connection.close()
-    if new_data.get("text") is not None:
-        select_quotes = f"UPDATE quotes  SET text=?  WHERE id=?"
-        connection = sqlite3.connect("store.db")
-        cursor = connection.cursor()
-        cursor.execute(select_quotes, (new_data["text"],new_data["id"]))  
-        connection.commit() 
-        cursor.close()
-        connection.close()
+    quote = db.get_or_404(QuoteModel, id)
+
+    if "author" in new_data:
+        quote.author = new_data["author"]
+    if "text" in new_data:
+        quote.text = new_data["text"]
+    if "rating" in new_data:
+        if 0<int(new_data["rating"])<6:
+            quote.rating = int(new_data["rating"])
+        
+    db.session.commit()
+    return jsonify(quote.to_dict()),200
+
+    ############################Вывод через select
+    # new_data= request.json
+    # new_data["id"] = int(id)
+    # if new_data.get("author") is not None:
+    #     select_quotes = "UPDATE quotes SET author=(?) WHERE id=(?)"
+    #     connection = sqlite3.connect("store.db")
+    #     cursor = connection.cursor()
+    #     cursor.execute(select_quotes,(new_data["author"],new_data["id"])) 
+    #     connection.commit() 
+    #     cursor.close()
+    #     connection.close()
+    # if new_data.get("text") is not None:
+    #     select_quotes = f"UPDATE quotes  SET text=?  WHERE id=?"
+    #     connection = sqlite3.connect("store.db")
+    #     cursor = connection.cursor()
+    #     cursor.execute(select_quotes, (new_data["text"],new_data["id"]))  
+    #     connection.commit() 
+    #     cursor.close()
+    #     connection.close()
     
-    select_quotes = f"SELECT * from quotes where id ={id} "
-    connection = sqlite3.connect("store.db")
-    cursor = connection.cursor()
-    cursor.execute(select_quotes)
-    quotes_db = cursor.fetchone()  
-    cursor.close()
-    connection.close()
-    keys = ("id", "author", "text")
-    if quotes_db is not None:
-        quote = dict(zip(keys,quotes_db))
-        return jsonify(quote), 200
-    return f"Quote with id={id} not found", 404
-       
+    # select_quotes = f"SELECT * from quotes where id ={id} "
+    # connection = sqlite3.connect("store.db")
+    # cursor = connection.cursor()
+    # cursor.execute(select_quotes)
+    # quotes_db = cursor.fetchone()  
+    # cursor.close()
+    # connection.close()
+    # keys = ("id", "author", "text")
+    # if quotes_db is not None:
+    #     quote = dict(zip(keys,quotes_db))
+    #     return jsonify(quote), 200
+    # return f"Quote with id={id} not found", 404
+#################################       
    
 #     for num_id in quotes_all:
 #         if num_id["id"] == new_data["id"]:
@@ -215,18 +233,23 @@ def edit_quote(id):
 
 @app.route("/quotes/<id>", methods=['DELETE'])
 def delete(id):
-    select_quotes = f"DELETE FROM quotes WHERE id={id} "
-    connection = sqlite3.connect("store.db")
-    cursor = connection.cursor()
-    cursor.execute(select_quotes)   
-    del_quotes= cursor.rowcount
-    if del_quotes is not None:
-        connection.commit() 
-        cursor.close()
-        connection.close()
-        return f"Quote with id {id} is deleted.", 200
-    else: return f"Quote with id={id} not found", 404
-#   
+    quote = db.get_or_404(QuoteModel, id)
+    db.session.delete(quote)
+    db.session.commit()
+    return f"Quote with id {id} is deleted.", 200
+    #############################Вывод через select
+    # select_quotes = f"DELETE FROM quotes WHERE id={id} "
+    # connection = sqlite3.connect("store.db")
+    # cursor = connection.cursor()
+    # cursor.execute(select_quotes)   
+    # del_quotes= cursor.rowcount
+    # if del_quotes is not None:
+    #     connection.commit() 
+    #     cursor.close()
+    #     connection.close()
+    #     return f"Quote with id {id} is deleted.", 200
+    # else: return f"Quote with id={id} not found", 404
+############################   
 # 
 #     ind=0
 #     for num_id in quotes_all:
