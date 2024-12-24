@@ -40,7 +40,10 @@ class AuthorModel(db.Model):
     def __init__(self, name):
         self.name = name
     def to_dict(self):
-        return{"name": self.name}
+        return{
+            "id": self.id,
+            "name": self.name
+            }
 
 
 class QuoteModel(db.Model):
@@ -58,7 +61,7 @@ class QuoteModel(db.Model):
     def to_dict(self):
         return {
             "id" : self.id,
-            "author": self.author,
+            # "author": self.author,
             "text": self.text,
             "rating": self.rating
         }
